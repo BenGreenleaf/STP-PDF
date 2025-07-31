@@ -38,8 +38,8 @@ Finds the sub-assembly file object in the vault folder, initiates recursive file
 ---
 
 ## Usage
-1. Ensure `config.json` is present in the same folder, with correct vault and folder paths.
-2. **Run the script or executable in dist/other.exe**
+1. Ensure `config.json` in dist/config.json is present in the same folder, with correct vault and folder paths.
+2. **Run the script or executable in dist/main.exe**
 3. **Provide the sub-assembly name** when prompted with or without file extension (only .SLDASM files)
 
 
