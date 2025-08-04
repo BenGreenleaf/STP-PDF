@@ -1,4 +1,5 @@
 {
     "vault_name": "SSPDM",
-    "dll_path": "C:\\Program Files (x86)\\SOLIDWORKS PDM\\EdmInterface.dll"
+    "dll_path": "C:\\Program Files (x86)\\SOLIDWORKS PDM\\EdmInterface.dll",
+    "root_folder": "C:\\SSPDM"
 }
