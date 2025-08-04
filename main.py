@@ -66,6 +66,12 @@ def recursive_get(sub_assembly_obj, parent_folder_id, destination_folder, existi
                 pdf_modified_date = pdf.GetLocalFileDate(part_folder_id) if pdf else None
                 stp_modified_date = stp.GetLocalFileDate(part_folder_id) if stp else None
 
+                if part_modified_date is None:
+                    print(f"      {part_name} - Part modified date not found")
+                    cont = input(f"      Do you want to continue with {part_name}? (y/n): ")
+                    if cont.lower() != 'n':
+                        continue
+
                 # Check if part was modified after PDF
                 if part_modified_date > pdf_modified_date:
                     print(f"      Warning: {part_name} was modified after PDF")
