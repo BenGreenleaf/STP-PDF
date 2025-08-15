@@ -19,7 +19,7 @@ def connect_to_vault(vault_name, lib = 'comtypes'):
     return vault
 
 
-def recursive_get(sub_assembly_obj, parent_folder_id, destination_folder, existing_parts, pending_parts, work_in_progress_parts, parts_missing_pdf, parts_missing_step):
+def recursive_get(sub_assembly_obj, parent_folder_id, destination_folder, existing_parts, pending_parts, work_in_progress_parts, parts_missing_pdf, parts_missing_step, not_included):
 
     ref_tree = sub_assembly_obj.GetReferenceTree(parent_folder_id)
     project_name, ref_pos = ref_tree.GetFirstChildPosition("", True, True, 0)
@@ -36,13 +36,24 @@ def recursive_get(sub_assembly_obj, parent_folder_id, destination_folder, existi
         state = getattr(part_file.CurrentState, "Name", "Unknown")  # Get the state name
 
         if part_type == 'sldprt' and part_name not in existing_parts:
-
+            allowed = False
             if state == "Pending Approval":
                 pending_parts.append(part_name)
-            elif state == "Work In Progress":
+            elif state == "Work in Progress":
                 work_in_progress_parts.append(part_name)
             elif state == "Approved":
-                
+                allowed = True
+            elif state == "Initiated":
+                allowed = False
+            elif state == "Library":
+                allowed = False
+            else:
+                print(f"      {ref_item.Name} - Unknown State: {state}") 
+                cont = input(f"      Do you want to continue with {part_name}? (y/n): ")
+                if cont.lower() != 'y':
+                    allowed = True
+            
+            if allowed == True:    
                 folder_pos = part_file.GetFirstFolderPosition()
                 folder_obj = part_file.GetNextFolder(folder_pos)
                 part_folder_id = folder_obj.ID
@@ -51,12 +62,16 @@ def recursive_get(sub_assembly_obj, parent_folder_id, destination_folder, existi
                     pdf = folder_obj.GetFile("{}.pdf".format(part_name))
                 except:
                     print(f"      {part_name} - PDF not found, skipping")
+                    parts_missing_pdf.append(part_name)
+                    not_included.append(part_name)
                     continue
 
                 try:
                     stp = folder_obj.GetFile("{}.step".format(part_name))
                 except:
                     print(f"      {part_name} - STEP not found, skipping")
+                    parts_missing_step.append(part_name)
+                    not_included.append(part_name)
                     continue
 
                 pdf.GetFileCopy(0, "", 0, 0, "")
@@ -69,24 +84,24 @@ def recursive_get(sub_assembly_obj, parent_folder_id, destination_folder, existi
                 if part_modified_date is None:
                     print(f"      {part_name} - Part modified date not found")
                     cont = input(f"      Do you want to continue with {part_name}? (y/n): ")
-                    if cont.lower() != 'n':
+                    if cont.lower() != 'y':
+                        not_included.append(part_name)
                         continue
 
-                # Check if part was modified after PDF
-                if part_modified_date > pdf_modified_date:
-                    print(f"      Warning: {part_name} was modified after PDF")
-                    parts_missing_pdf.append(part_name)
+                else:
+                    # Check if part was modified after PDF
+                    if part_modified_date > pdf_modified_date:
+                        print(f"      Warning: {part_name} was modified after PDF")
 
-                if part_modified_date > stp_modified_date:
-                    print(f"      Warning: {part_name} was modified after STEP")
-                    parts_missing_step.append(part_name)
+                    if part_modified_date > stp_modified_date:
+                        print(f"      Warning: {part_name} was modified after STEP")
 
-                cont = 'y'
-                if part_modified_date > pdf_modified_date or part_modified_date > stp_modified_date:
-                    cont = input(f"      Do you want to continue with {part_name}? (y/n): ")
+                    cont = 'y'
+                    if part_modified_date > pdf_modified_date or part_modified_date > stp_modified_date:
+                        cont = input(f"      Do you want to continue with {part_name}? (y/n): ")
 
                 if cont.lower() == 'y':
-                    print(f"      {ref_item.Name} - State: {state}")
+                    #print(f"      {ref_item.Name} - State: {state}")
                     # Get the local path of the file in your cache
                     local_pdf_path = pdf.GetLocalPath(part_folder_id)
                     local_stp_path = stp.GetLocalPath(part_folder_id)
@@ -96,18 +111,22 @@ def recursive_get(sub_assembly_obj, parent_folder_id, destination_folder, existi
                     shutil.copy(local_stp_path, destination_folder)
 
                     existing_parts.append(part_name)
-            
+                else:
+                    print(f"      {part_name} - Skipped by user")
+                    not_included.append(part_name)
+
             else:
-                print(f"      {ref_item.Name} - State: {state} (skipped)") 
+                print(f"      {part_name} - Skipped due to state: {state}")
+                not_included.append(part_name)
 
         elif part_type == 'sldasm':
             # Recursively process sub-assemblies
             folder_pos = part_file.GetFirstFolderPosition()
             folder_obj = part_file.GetNextFolder(folder_pos)
             part_folder_id = folder_obj.ID
-            existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step = recursive_get(part_file, part_folder_id, destination_folder, existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step)
+            existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step, not_included = recursive_get(part_file, part_folder_id, destination_folder, existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step, not_included)
 
-    return existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step
+    return existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step, not_included
 
 
 # Find the sub-assembly file object
@@ -119,6 +138,7 @@ def main(sub_assembly_name, destination_folder):
     pending_parts = []
     parts_missing_pdf = []
     parts_missing_step = []
+    not_included = []
 
     while not enum_pos.IsNull:
         file = folder.GetNextFile(enum_pos)
@@ -127,9 +147,9 @@ def main(sub_assembly_name, destination_folder):
             break
 
     if sub_assembly_obj:
-        existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step = recursive_get(sub_assembly_obj, folder.ID, destination_folder, [], [], [], [], [])
-        
-        
+        existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step, not_included = recursive_get(sub_assembly_obj, folder.ID, destination_folder, [], [], [], [], [], [])
+
+        print("\n\n\n")
         if len(work_in_progress_parts) != 0:
             print(f"Warning: {sub_assembly_obj.Name} Contains work in progress parts which were skipped: {work_in_progress_parts}")
         if len(pending_parts) != 0:
@@ -138,7 +158,15 @@ def main(sub_assembly_name, destination_folder):
             print(f"Warning: {sub_assembly_obj.Name} Contains parts missing PDF files: {parts_missing_pdf}")
         if len(parts_missing_step) != 0:
             print(f"Warning: {sub_assembly_obj.Name} Contains parts missing STEP files: {parts_missing_step}")
-        
+
+        print("\n\n")
+        print("Not Included Parts:")
+        for part in not_included:
+            print(f" - {part}")
+        print("\n")
+        print("Included Parts:")
+        for part in existing_parts:
+            print(f" - {part}")
 
         # Zip the contents of the destination folder
         zip_filename = os.path.join(os.path.dirname(destination_folder), f"{os.path.splitext(sub_assembly_name)[0]}_parts.zip")
