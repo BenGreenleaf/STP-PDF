@@ -234,7 +234,9 @@ if __name__ == "__main__":
             config = {}
 
         vault_name = config.get('vault_name', 'SSPDM')
+        print("Was able to get vault name")
         dll_path = config.get('dll_path', r'C:\Program Files (x86)\SOLIDWORKS PDM\EdmInterface.dll')
+        print("Was able to access DLL path")
         root_folder_loc = config.get('root_folder', r'C:\SSPDM')
 
         cc.GetModule(dll_path)
