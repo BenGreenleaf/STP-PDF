@@ -19,7 +19,7 @@ def connect_to_vault(vault_name, lib = 'comtypes'):
     return vault
 
 
-def recursive_get(sub_assembly_obj, parent_folder_id, destination_folder, existing_parts, pending_parts, work_in_progress_parts, parts_missing_pdf, parts_missing_step, not_included):
+def recursive_get(sub_assembly_obj, parent_folder_id, destination_folder, existing_parts, pending_parts, work_in_progress_parts, parts_missing_pdf, parts_missing_step, not_included, state_counter):
 
     ref_tree = sub_assembly_obj.GetReferenceTree(parent_folder_id)
     project_name, ref_pos = ref_tree.GetFirstChildPosition("", True, True, 0)
@@ -37,6 +37,10 @@ def recursive_get(sub_assembly_obj, parent_folder_id, destination_folder, existi
 
         if part_type == 'sldprt' and part_name not in existing_parts:
             allowed = False
+            try:
+                state_counter[state] += 1
+            except KeyError:
+                state_counter[state] = 1
             if state == "Pending Approval":
                 pending_parts.append(part_name)
             elif state == "Work in Progress":
@@ -124,9 +128,9 @@ def recursive_get(sub_assembly_obj, parent_folder_id, destination_folder, existi
             folder_pos = part_file.GetFirstFolderPosition()
             folder_obj = part_file.GetNextFolder(folder_pos)
             part_folder_id = folder_obj.ID
-            existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step, not_included = recursive_get(part_file, part_folder_id, destination_folder, existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step, not_included)
+            existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step, not_included, state_counter = recursive_get(part_file, part_folder_id, destination_folder, existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step, not_included, state_counter)
 
-    return existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step, not_included
+    return existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step, not_included, state_counter
 
 
 # Find the sub-assembly file object
@@ -147,7 +151,7 @@ def main(sub_assembly_name, destination_folder):
             break
 
     if sub_assembly_obj:
-        existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step, not_included = recursive_get(sub_assembly_obj, folder.ID, destination_folder, [], [], [], [], [], [])
+        existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step, not_included, state_counter = recursive_get(sub_assembly_obj, folder.ID, destination_folder, [], [], [], [], [], [], {})
 
         print("\n\n\n")
         if len(work_in_progress_parts) != 0:
@@ -167,6 +171,10 @@ def main(sub_assembly_name, destination_folder):
         print("Included Parts:")
         for part in existing_parts:
             print(f" - {part}")
+        print("\n")
+        print("State Counts:")
+        for state, count in state_counter.items():
+            print(f" - {state}: {count}")
 
         # Zip the contents of the destination folder
         zip_filename = os.path.join(os.path.dirname(destination_folder), f"{os.path.splitext(sub_assembly_name)[0]}_parts.zip")
