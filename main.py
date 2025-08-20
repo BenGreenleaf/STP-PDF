@@ -154,6 +154,12 @@ def main(sub_assembly_name, destination_folder):
         existing_parts, work_in_progress_parts, pending_parts, parts_missing_pdf, parts_missing_step, not_included, state_counter = recursive_get(sub_assembly_obj, folder.ID, destination_folder, [], [], [], [], [], [], {})
 
         print("\n\n\n")
+        
+        work_in_progress_parts.sort()
+        pending_parts.sort()
+        parts_missing_pdf.sort()
+        parts_missing_step.sort()
+
         if len(work_in_progress_parts) != 0:
             print(f"Warning: {sub_assembly_obj.Name} Contains work in progress parts which were skipped: {work_in_progress_parts}")
         if len(pending_parts) != 0:
